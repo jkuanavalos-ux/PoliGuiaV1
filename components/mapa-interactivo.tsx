@@ -73,7 +73,7 @@ const areasDataVista1 = {
     contacto: "--",
     imagen: ["/poliplazas/poliplaza1_2.jpg", "/poliplazas/poliplaza1_1.jpg", "/poliplazas/p1_2.jpeg"],
     x: 60,
-    y: 35,
+    y: 36,
     radius: 50,
   },
     poliplaza2: {

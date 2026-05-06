@@ -929,45 +929,70 @@ interface InteractiveAreaProps {
 }
 
 function InteractiveArea({ id, data, isSelected, isHovered, onHover, onClick }: InteractiveAreaProps) {
-  // Detectamos si es móvil para achicar el punto
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-  const adjustedRadius = isMobile ? data.radius * 0.7 : data.radius;
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+  const r = isMobile ? data.radius * 0.7 : data.radius
 
   return (
     <div
-      className="absolute group"
+      className="absolute"
       style={{ left: `${data.x}%`, top: `${data.y}%`, transform: "translate(-50%, -50%)" }}
     >
-      <div
-        className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 whitespace-nowrap px-3 py-2 rounded-lg text-sm font-bold shadow-lg transition-all duration-300 pointer-events-none z-[60] ${
-          isHovered || isSelected ? "opacity-100 scale-100" : "opacity-0 scale-95"
-        } ${isSelected ? "bg-blue-900 text-white" : "bg-blue-900 text-white"}`}
+      <AnimatePresence>
+        {(isHovered || isSelected) && (
+          <motion.div
+            key="label"
+            initial={{ opacity: 0, y: 6, scale: 0.92 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.95 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold shadow-lg bg-blue-900 text-white pointer-events-none z-[60]"
+          >
+            {data.nombre}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <motion.div
+        className="relative rounded-full cursor-pointer"
+        style={{ width: r, height: r }}
+        animate={
+          isSelected
+            ? { scale: 1.15 }
+            : { scale: 1 }
+        }
+        whileTap={{ scale: 0.82 }}
+        transition={{ type: "spring", stiffness: 380, damping: 22 }}
+        onMouseEnter={() => onHover(id)}
+        onMouseLeave={() => onHover(null)}
+        onClick={() => onClick(id)}
       >
-        {data.nombre}
-      </div>
-
-      {/* Convertimos el div principal en motion.div */}
-    <motion.div
-      className={`relative rounded-full transition-all duration-300 cursor-pointer ${
-        isSelected ? "ring-4 ring-blue-500 ring-offset-2" : ""
-      }`}
-      style={{
-        width: `${adjustedRadius}px`,
-        height: `${adjustedRadius}px`,
-      }}
-      // --- NUEVA LÓGICA DE ANIMACIÓN ---
-      // Al tocar o hacer clic, el punto se encoge instantáneamente a 0.8x de su tamaño original
-      whileTap={{ scale: 0.8 }} 
-      // Mantenemos los eventos originales
-      onMouseEnter={() => onHover(id)}
-      onMouseLeave={() => onHover(null)}
-      onClick={() => onClick(id)}
-    >
-      {/* Mantenemos tus div interiores originales exactamente igual */}
-      <div className={`absolute inset-0 rounded-full transition-all duration-300 ${isSelected ? "bg-blue-700 opacity-80 scale-110" : isHovered ? "bg-blue-600 opacity-50 scale-105" : "bg-blue-500 opacity-30"}`} />
-      <div className={`absolute inset-0 rounded-full border-2 transition-all duration-300 ${isSelected ? "border-blue-600 opacity-100" : isHovered ? "border-blue-400 opacity-80" : "border-blue-600 opacity-50"}`} />
-    </motion.div>  
-
+        <motion.div
+          className="absolute inset-0 rounded-full"
+          animate={{
+            backgroundColor: isSelected
+              ? "rgba(29,78,216,0.85)"
+              : isHovered
+              ? "rgba(37,99,235,0.55)"
+              : "rgba(59,130,246,0.32)",
+          }}
+          transition={{ duration: 0.18 }}
+        />
+        <motion.div
+          className="absolute inset-0 rounded-full border-2"
+          animate={{
+            borderColor: isSelected ? "rgba(96,165,250,1)" : "rgba(96,165,250,0.55)",
+            opacity: isSelected ? 1 : isHovered ? 0.85 : 0.55,
+          }}
+          transition={{ duration: 0.18 }}
+        />
+        {isSelected && (
+          <motion.div
+            className="absolute inset-0 rounded-full border-2 border-blue-400"
+            animate={{ scale: [1, 1.7], opacity: [0.6, 0] }}
+            transition={{ duration: 0.7, repeat: Infinity, ease: "easeOut" }}
+          />
+        )}
+      </motion.div>
     </div>
   )
 }
@@ -1075,7 +1100,7 @@ function MapViewer({ src, children, isMobile, windowHeight }:
           transformOrigin: "0 0",
           touchAction: "none",
           position: "relative",
-          width: "100%",
+          width: isMobile ? "600px" : "100%",
           cursor: "grab",
           willChange: "transform",
         }}
@@ -1297,6 +1322,21 @@ export default function MapaInteractivo() {
       </button>
     </div>
 
+      {/* Overlay: bloquea el mapa y cierra el panel al tocar afuera */}
+      <AnimatePresence>
+        {filtroVisible && (
+          <motion.div
+            key="sidebar-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[85]"
+            onClick={() => setFiltroVisible(false)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Panel lateral */}
       <motion.div
         className="fixed top-[80px] left-0 h-full bg-[#0b284e] text-white w-64 shadow-2xl z-[90]"
@@ -1314,20 +1354,7 @@ export default function MapaInteractivo() {
           }
         }}
       >
-        <div className="flex items-center justify-between px-6 py-5 border-b border-blue-900">
-          <X
-            className="w-6 h-6 cursor-pointer text-blue-300 hover:text-white"
-            onClick={() => setFiltroVisible(false)}
-          />
-          {/* indicador visual de deslizamiento */}
-          <div className="flex flex-col gap-[3px] opacity-40 pr-1">
-            <div className="w-5 h-0.5 bg-blue-300 rounded-full" />
-            <div className="w-5 h-0.5 bg-blue-300 rounded-full" />
-            <div className="w-5 h-0.5 bg-blue-300 rounded-full" />
-          </div>
-        </div>
-
-        <ul className="p-4 space-y-2">
+        <ul className="pt-4 p-4 space-y-2">
           {Object.keys(categorias).map((cat) => (
             <li key={cat}>
               <button

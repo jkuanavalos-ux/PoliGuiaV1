@@ -72,7 +72,7 @@ const areasDataVista1 = {
     capacidad: "Espacio Abierto",
     contacto: "--",
     imagen: ["/poliplazas/poliplaza1_2.jpg", "/poliplazas/poliplaza1_1.jpg", "/poliplazas/p1_2.jpeg"],
-    x: 60,
+    x: 61,
     y: 36,
     radius: 50,
   },

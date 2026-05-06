@@ -972,83 +972,112 @@ function InteractiveArea({ id, data, isSelected, isHovered, onHover, onClick }: 
   )
 }
 
-  // MapViewer: muestra la imagen del mapa (<img>) y posiciona los puntos
-  // con top/left (%) dentro de un contenedor transformable. Añade
-  // pan y pinch-to-zoom sencillos para dispositivos táctiles.
-  function MapViewer({ src, children, isMobile, windowHeight }: 
-    { src: string; children: React.ReactNode, isMobile: boolean; windowHeight: number }) {
-    
-    const containerRef = useRef<HTMLDivElement | null>(null)
-    const imgRef = useRef<HTMLImageElement>(null)
-    const pointers = useRef<Map<number, { x: number; y: number }>>(new Map())
-    const lastPan = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
-    const [tx, setTx] = useState(0)
-    const [ty, setTy] = useState(0)
+function MapViewer({ src, children, isMobile, windowHeight }:
+  { src: string; children: React.ReactNode; isMobile: boolean; windowHeight: number }) {
 
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const imgRef = useRef<HTMLImageElement>(null)
+  const pointers = useRef<Map<number, { x: number; y: number }>>(new Map())
+  const lastPan = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const lastDist = useRef<number | null>(null)
+  const lastMid = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
 
-    useEffect(() => {
-      // Si bajaste el minWidth a 800px, probá con 0 o -50 para que empiece centrado
-      if (!isMobile) {
-        setTx(0);
-        setTy(0);
-      } else {
-        setTx(-50); // Ajustá este valor hasta que el inicio sea perfecto
-        setTy(0);
-      }
-    }, [src, isMobile]);
+  const MIN_SCALE = 1
+  const MAX_SCALE = 3
 
-    const onPointerMove = (e: React.PointerEvent) => {
-      if (!pointers.current.has(e.pointerId)) return
-      const cur = { x: e.clientX, y: e.clientY }
-      const dx = cur.x - lastPan.current.x
-      const dy = cur.y - lastPan.current.y
+  const [view, setView] = useState({ tx: 0, ty: 0, scale: 1 })
 
-      if (imgRef.current && containerRef.current) {
-        const vW = containerRef.current.offsetWidth;
-        const vH = containerRef.current.offsetHeight;
-        const iW = imgRef.current.offsetWidth;
-        const iH = imgRef.current.offsetHeight;
+  useEffect(() => {
+    setView({ tx: 0, ty: 0, scale: 1 })
+    lastDist.current = null
+  }, [src])
 
-        setTx((prev) => {
-          const next = prev + dx;
-          const limitX = -(iW - vW);
-          return Math.min(0, Math.max(next, limitX)); // Bloquea el blanco
-        });
-        setTy((prev) => {
-          const next = prev + dy;
-          const limitY = -(iH - vH);
-          return Math.min(0, Math.max(next, limitY)); // Bloquea el blanco
-        });
-      }
-      lastPan.current = cur
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
+
+  const getLimits = (s: number) => ({
+    minX: Math.min(0, (containerRef.current?.offsetWidth ?? 0) - (imgRef.current?.offsetWidth ?? 0) * s),
+    minY: Math.min(0, (containerRef.current?.offsetHeight ?? 0) - (imgRef.current?.offsetHeight ?? 0) * s),
+  })
+
+  const clampX = (v: number, s: number) => clamp(v, getLimits(s).minX, 0)
+  const clampY = (v: number, s: number) => clamp(v, getLimits(s).minY, 0)
+
+  const getPoints = () => Array.from(pointers.current.values())
+  const pdist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(b.x - a.x, b.y - a.y)
+  const pmid  = (a: { x: number; y: number }, b: { x: number; y: number }) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    const p = getPoints()
+    if (p.length === 1) {
+      lastPan.current = { x: e.clientX, y: e.clientY }
+    } else if (p.length === 2) {
+      lastDist.current = pdist(p[0], p[1])
+      lastMid.current  = pmid(p[0], p[1])
     }
+  }
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!pointers.current.has(e.pointerId)) return
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    const p    = getPoints()
+    const rect = containerRef.current?.getBoundingClientRect()
+
+    if (p.length >= 2 && lastDist.current !== null && rect) {
+      const newDist = pdist(p[0], p[1])
+      const newMid  = pmid(p[0], p[1])
+      setView(prev => {
+        const ratio     = newDist / lastDist.current!
+        const nextScale = clamp(prev.scale * ratio, MIN_SCALE, MAX_SCALE)
+        const sr        = nextScale / prev.scale
+        const px        = lastMid.current.x - rect.left
+        const py        = lastMid.current.y - rect.top
+        return {
+          scale: nextScale,
+          tx: clampX(px - sr * (px - prev.tx), nextScale),
+          ty: clampY(py - sr * (py - prev.ty), nextScale),
+        }
+      })
+      lastDist.current = newDist
+      lastMid.current  = newMid
+    } else if (p.length === 1) {
+      const dx = e.clientX - lastPan.current.x
+      const dy = e.clientY - lastPan.current.y
+      lastPan.current = { x: e.clientX, y: e.clientY }
+      setView(prev => ({
+        ...prev,
+        tx: clampX(prev.tx + dx, prev.scale),
+        ty: clampY(prev.ty + dy, prev.scale),
+      }))
+    }
+  }
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    pointers.current.delete(e.pointerId)
+    if (pointers.current.size < 2) lastDist.current = null
+    const p = getPoints()
+    if (p.length === 1) lastPan.current = p[0]
+  }
 
   return (
-      <div 
-        ref={containerRef} 
-        className="relative w-full overflow-hidden bg-[#0b284e]" 
-        style={{ 
-          height: "calc(100vh - 80px)", 
-          marginTop: "80px" 
-        }}
-      >
+    <div
+      ref={containerRef}
+      className="relative w-full overflow-hidden bg-[#0b284e]"
+      style={{ height: "calc(100vh - 80px)", marginTop: "80px" }}
+    >
       <div
-        onPointerDown={(e) => {
-          pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-          lastPan.current = { x: e.clientX, y: e.clientY };
-        }}
+        onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        onPointerUp={(e) => pointers.current.delete(e.pointerId)}
-        onPointerCancel={(e) => pointers.current.delete(e.pointerId)}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
         style={{
-          transform: `translate(${tx}px, ${ty}px)`,
+          transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`,
+          transformOrigin: "0 0",
           touchAction: "none",
           position: "relative",
-          // ESTO ES LO IMPORTANTE:
-          display: "inline-block", // Mantiene los puntos vinculados al tamaño de la imagen
-          width: "fit-content", 
+          width: "100%",
           cursor: "grab",
-          flexShrink: 0
+          willChange: "transform",
         }}
       >
         <img
@@ -1056,23 +1085,15 @@ function InteractiveArea({ id, data, isSelected, isHovered, onHover, onClick }: 
           src={src}
           alt="Mapa"
           className="select-none pointer-events-none"
-            style={{
-            display: "block",
-            width: "auto", 
-            height: isMobile ? "100%" : "auto", 
-            minWidth: isMobile ? "750px" : "100%", // Bajando este número alejás el mapa
-            maxWidth: "none",
-            flexShrink: 0
-          }}
+          style={{ display: "block", width: "100%", height: "auto" }}
         />
-        {/* El div de los puntos ahora siempre medirá lo mismo que la imagen arriba */}
         <div className="absolute inset-0">
           {children}
         </div>
       </div>
     </div>
-  );
-  }
+  )
+}
 
 
 
@@ -1277,17 +1298,33 @@ export default function MapaInteractivo() {
     </div>
 
       {/* Panel lateral */}
-      <div
-        className={`fixed top-[80px] left-0 h-full bg-[#0b284e] text-white w-64 shadow-2xl transform transition-transform duration-300 z-[90] ${
-          filtroVisible ? "translate-x-0" : "-translate-x-full"
-        }`}
+      <motion.div
+        className="fixed top-[80px] left-0 h-full bg-[#0b284e] text-white w-64 shadow-2xl z-[90]"
+        animate={{ x: filtroVisible ? 0 : -256 }}
+        initial={{ x: -256 }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        drag="x"
+        dragConstraints={{ left: -256, right: 0 }}
+        dragElastic={0}
+        dragMomentum={false}
+        style={{ pointerEvents: filtroVisible ? "auto" : "none" }}
+        onDragEnd={(_: unknown, info: { offset: { x: number }; velocity: { x: number } }) => {
+          if (info.offset.x < -50 || info.velocity.x < -300) {
+            setFiltroVisible(false)
+          }
+        }}
       >
         <div className="flex items-center justify-between px-6 py-5 border-b border-blue-900">
-          {/*<h3 className="text-lg font-bold">Categorías</h3>*/}
-          <X 
-            className="w-6 h-6 cursor-pointer text-blue-300 hover:text-white" 
-            onClick={() => setFiltroVisible(false)} 
+          <X
+            className="w-6 h-6 cursor-pointer text-blue-300 hover:text-white"
+            onClick={() => setFiltroVisible(false)}
           />
+          {/* indicador visual de deslizamiento */}
+          <div className="flex flex-col gap-[3px] opacity-40 pr-1">
+            <div className="w-5 h-0.5 bg-blue-300 rounded-full" />
+            <div className="w-5 h-0.5 bg-blue-300 rounded-full" />
+            <div className="w-5 h-0.5 bg-blue-300 rounded-full" />
+          </div>
         </div>
 
         <ul className="p-4 space-y-2">
@@ -1309,7 +1346,7 @@ export default function MapaInteractivo() {
             </li>
           ))}
         </ul>
-      </div>
+      </motion.div>
 
 
 </div>

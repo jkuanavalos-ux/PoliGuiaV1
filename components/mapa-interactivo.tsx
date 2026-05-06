@@ -1210,24 +1210,17 @@ export default function MapaInteractivo() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.3 }} // Un poco más rápido para que no distraiga
+        transition={{ duration: 0.15 }}
         onClick={cerrarPanel}
-        className="fixed inset-0 bg-black/40 z-[110] backdrop-blur-[2px]"
+        className="fixed inset-0 bg-black/40 z-[110]"
       />
 
-      {/* 2. El Panel - Recuperamos la fluidez original con coordenadas fijas */}
       <motion.div
         key="info-panel-content"
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        // Usamos una transición física (spring) pero ajustada para que sea suave
-        transition={{ 
-          type: "spring", 
-          damping: 30, 
-          stiffness: 300, 
-          mass: 0.8     // Menos masa para que se mueva más liviano
-        }}
+        exit={{ y: "100%", transition: { duration: 0.16, ease: "easeIn" } }}
+        transition={{ duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] }}
         className="fixed bottom-0 left-0 w-full z-[120]"
       >
         <InfoPanel

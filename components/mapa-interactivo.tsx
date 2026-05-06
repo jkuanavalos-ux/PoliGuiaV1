@@ -947,20 +947,37 @@ function InteractiveArea({ id, data, isSelected, isHovered, onHover, onClick }: 
       </div>
 
       <motion.div
-        className={`relative rounded-full transition-all duration-300 cursor-pointer ${
-          isSelected ? "ring-4 ring-blue-500 ring-offset-2" : ""
-        }`}
-        style={{
-          width: `${adjustedRadius}px`,
-          height: `${adjustedRadius}px`,
-        }}
+        className="relative rounded-full cursor-pointer"
+        style={{ width: `${adjustedRadius}px`, height: `${adjustedRadius}px` }}
         whileTap={{ scale: 0.8 }}
         onMouseEnter={() => onHover(id)}
         onMouseLeave={() => onHover(null)}
         onClick={() => onClick(id)}
       >
-        <div className={`absolute inset-0 rounded-full transition-all duration-300 ${isSelected ? "bg-blue-700 opacity-80 scale-110" : isHovered ? "bg-blue-600 opacity-50 scale-105" : "bg-blue-500 opacity-30"}`} />
-        <div className={`absolute inset-0 rounded-full border-2 transition-all duration-300 ${isSelected ? "border-blue-600 opacity-100" : isHovered ? "border-blue-400 opacity-80" : "border-blue-600 opacity-50"}`} />
+        {/* Anillo sonar - pulsa continuamente para llamar la atención */}
+        <motion.div
+          className="absolute -inset-2 rounded-full border-2 border-blue-300/60 pointer-events-none"
+          animate={{ scale: [1, 1.7], opacity: [0.65, 0] }}
+          transition={{ duration: 2.2, repeat: Infinity, ease: "easeOut", repeatDelay: 0.3 }}
+        />
+
+        {/* Anillo extra cuando está seleccionado */}
+        {isSelected && (
+          <div className="absolute -inset-[6px] rounded-full border-[3px] border-white/80 pointer-events-none" />
+        )}
+
+        {/* Relleno principal */}
+        <div className={`absolute inset-0 rounded-full transition-colors duration-200 ${
+          isSelected ? "bg-blue-600/90" : isHovered ? "bg-blue-500/80" : "bg-blue-500/70"
+        }`} />
+
+        {/* Borde blanco - contrasta contra cualquier fondo del mapa */}
+        <div className={`absolute inset-0 rounded-full border-2 transition-colors duration-200 ${
+          isSelected ? "border-white/95" : isHovered ? "border-white/75" : "border-white/55"
+        }`} />
+
+        {/* Punto central - da aspecto de pin de mapa */}
+        <div className="absolute inset-[28%] rounded-full bg-white/90 pointer-events-none" />
       </motion.div>
     </div>
   )

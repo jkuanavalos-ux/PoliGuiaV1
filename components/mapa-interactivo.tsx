@@ -993,18 +993,28 @@ function MapViewer({ src, children, isMobile, windowHeight }:
   const [tx, setTx] = useState(0)
   const [ty, setTy] = useState(0)
 
-  useEffect(() => {
-    setTx(0);
-    setTy(0);
-  }, [src]);
-
   const centerMap = (imgEl: HTMLImageElement) => {
     if (!containerRef.current) return
     const vW = containerRef.current.offsetWidth
     const iW = imgEl.offsetWidth
+    if (iW === 0) return
     setTx(Math.min(0, (vW - iW) / 2))
     setTy(0)
   }
+
+  useEffect(() => {
+    const img = imgRef.current
+    const container = containerRef.current
+    // Si la imagen ya está cacheada (complete) la centramos de inmediato,
+    // si no, onLoad la centrará cuando termine de cargar
+    if (img && container && img.complete && img.offsetWidth > 0) {
+      setTx(Math.min(0, (container.offsetWidth - img.offsetWidth) / 2))
+      setTy(0)
+    } else {
+      setTx(0)
+      setTy(0)
+    }
+  }, [src])
 
   const onPointerMove = (e: React.PointerEvent) => {
     if (!pointers.current.has(e.pointerId)) return

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { X, MapPin, Users, Clock, Phone, Menu } from "lucide-react"
 import InfoPanel from "@/components/InfoPanel";
+import TutorialOverlay from "@/components/TutorialOverlay";
 
 
 function useWindowSize() {
@@ -1145,6 +1146,43 @@ export default function MapaInteractivo() {
   //-------------------------------------------
 
 
+  // ===== TUTORIAL =====
+  const [tutorialStep, setTutorialStep] = useState(0)
+  const [tutorialActive, setTutorialActive] = useState(true)
+
+  const nextTutorialStep = () => {
+    if (tutorialStep === 3) setAreaSeleccionada(null)
+    setTutorialStep((prev) => prev + 1)
+  }
+
+  const skipTutorial = () => {
+    setTutorialActive(false)
+    setAreaSeleccionada(null)
+    setFiltroVisible(false)
+  }
+
+  // Auto-advance: user tapped a point (step 2 → 3)
+  useEffect(() => {
+    if (tutorialActive && tutorialStep === 2 && areaSeleccionada) {
+      setTutorialStep(3)
+    }
+  }, [areaSeleccionada])
+
+  // Auto-advance: user opened hamburger (step 4 → 5)
+  useEffect(() => {
+    if (tutorialActive && tutorialStep === 4 && filtroVisible) {
+      setTutorialStep(5)
+    }
+  }, [filtroVisible])
+
+  // Auto-advance: user selected a category (step 5 → 6)
+  useEffect(() => {
+    if (tutorialActive && tutorialStep === 5 && categoria !== "Todos") {
+      setTutorialStep(6)
+    }
+  }, [categoria])
+  // ===== FIN TUTORIAL =====
+
   const cerrarPanel = () => setAreaSeleccionada(null)
 
 
@@ -1339,6 +1377,15 @@ export default function MapaInteractivo() {
 
 
 </div>
+
+      {/* ===== TUTORIAL ===== */}
+      {tutorialActive && (
+        <TutorialOverlay
+          step={tutorialStep}
+          onNext={nextTutorialStep}
+          onSkip={skipTutorial}
+        />
+      )}
     </>
   )
 }

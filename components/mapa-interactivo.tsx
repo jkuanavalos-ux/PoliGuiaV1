@@ -929,159 +929,87 @@ interface InteractiveAreaProps {
 }
 
 function InteractiveArea({ id, data, isSelected, isHovered, onHover, onClick }: InteractiveAreaProps) {
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
-  const r = isMobile ? data.radius * 0.7 : data.radius
+  // Detectamos si es móvil para achicar el punto
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const adjustedRadius = isMobile ? data.radius * 0.7 : data.radius;
 
   return (
     <div
-      className="absolute"
+      className="absolute group"
       style={{ left: `${data.x}%`, top: `${data.y}%`, transform: "translate(-50%, -50%)" }}
     >
-      <AnimatePresence>
-        {(isHovered || isSelected) && (
-          <motion.div
-            key="label"
-            initial={{ opacity: 0, y: 6, scale: 0.92 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 4, scale: 0.95 }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold shadow-lg bg-blue-900 text-white pointer-events-none z-[60]"
-          >
-            {data.nombre}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div
+        className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 whitespace-nowrap px-3 py-2 rounded-lg text-sm font-bold shadow-lg transition-all duration-300 pointer-events-none z-[60] ${
+          isHovered || isSelected ? "opacity-100 scale-100" : "opacity-0 scale-95"
+        } ${isSelected ? "bg-blue-900 text-white" : "bg-blue-900 text-white"}`}
+      >
+        {data.nombre}
+      </div>
 
       <motion.div
-        className="relative rounded-full cursor-pointer"
-        style={{ width: r, height: r }}
-        animate={
-          isSelected
-            ? { scale: 1.15 }
-            : { scale: 1 }
-        }
-        whileTap={{ scale: 0.82 }}
-        transition={{ type: "spring", stiffness: 380, damping: 22 }}
+        className={`relative rounded-full transition-all duration-300 cursor-pointer ${
+          isSelected ? "ring-4 ring-blue-500 ring-offset-2" : ""
+        }`}
+        style={{
+          width: `${adjustedRadius}px`,
+          height: `${adjustedRadius}px`,
+        }}
+        whileTap={{ scale: 0.8 }}
         onMouseEnter={() => onHover(id)}
         onMouseLeave={() => onHover(null)}
         onClick={() => onClick(id)}
       >
-        <motion.div
-          className="absolute inset-0 rounded-full"
-          animate={{
-            backgroundColor: isSelected
-              ? "rgba(29,78,216,0.85)"
-              : isHovered
-              ? "rgba(37,99,235,0.55)"
-              : "rgba(59,130,246,0.32)",
-          }}
-          transition={{ duration: 0.18 }}
-        />
-        <motion.div
-          className="absolute inset-0 rounded-full border-2"
-          animate={{
-            borderColor: isSelected ? "rgba(96,165,250,1)" : "rgba(96,165,250,0.55)",
-            opacity: isSelected ? 1 : isHovered ? 0.85 : 0.55,
-          }}
-          transition={{ duration: 0.18 }}
-        />
-        {isSelected && (
-          <motion.div
-            className="absolute inset-0 rounded-full border-2 border-blue-400"
-            animate={{ scale: [1, 1.7], opacity: [0.6, 0] }}
-            transition={{ duration: 0.7, repeat: Infinity, ease: "easeOut" }}
-          />
-        )}
+        <div className={`absolute inset-0 rounded-full transition-all duration-300 ${isSelected ? "bg-blue-700 opacity-80 scale-110" : isHovered ? "bg-blue-600 opacity-50 scale-105" : "bg-blue-500 opacity-30"}`} />
+        <div className={`absolute inset-0 rounded-full border-2 transition-all duration-300 ${isSelected ? "border-blue-600 opacity-100" : isHovered ? "border-blue-400 opacity-80" : "border-blue-600 opacity-50"}`} />
       </motion.div>
     </div>
   )
 }
 
 function MapViewer({ src, children, isMobile, windowHeight }:
-  { src: string; children: React.ReactNode; isMobile: boolean; windowHeight: number }) {
+  { src: string; children: React.ReactNode, isMobile: boolean; windowHeight: number }) {
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const imgRef = useRef<HTMLImageElement>(null)
   const pointers = useRef<Map<number, { x: number; y: number }>>(new Map())
   const lastPan = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
-  const lastDist = useRef<number | null>(null)
-  const lastMid = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
-
-  const MIN_SCALE = 1
-  const MAX_SCALE = 3
-
-  const [view, setView] = useState({ tx: 0, ty: 0, scale: 1 })
+  const [tx, setTx] = useState(0)
+  const [ty, setTy] = useState(0)
 
   useEffect(() => {
-    setView({ tx: 0, ty: 0, scale: 1 })
-    lastDist.current = null
-  }, [src])
-
-  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
-
-  const getLimits = (s: number) => ({
-    minX: Math.min(0, (containerRef.current?.offsetWidth ?? 0) - (imgRef.current?.offsetWidth ?? 0) * s),
-    minY: Math.min(0, (containerRef.current?.offsetHeight ?? 0) - (imgRef.current?.offsetHeight ?? 0) * s),
-  })
-
-  const clampX = (v: number, s: number) => clamp(v, getLimits(s).minX, 0)
-  const clampY = (v: number, s: number) => clamp(v, getLimits(s).minY, 0)
-
-  const getPoints = () => Array.from(pointers.current.values())
-  const pdist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(b.x - a.x, b.y - a.y)
-  const pmid  = (a: { x: number; y: number }, b: { x: number; y: number }) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-    const p = getPoints()
-    if (p.length === 1) {
-      lastPan.current = { x: e.clientX, y: e.clientY }
-    } else if (p.length === 2) {
-      lastDist.current = pdist(p[0], p[1])
-      lastMid.current  = pmid(p[0], p[1])
+    if (!isMobile) {
+      setTx(0);
+      setTy(0);
+    } else {
+      setTx(-50);
+      setTy(0);
     }
-  }
+  }, [src, isMobile]);
 
   const onPointerMove = (e: React.PointerEvent) => {
     if (!pointers.current.has(e.pointerId)) return
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-    const p    = getPoints()
-    const rect = containerRef.current?.getBoundingClientRect()
+    const cur = { x: e.clientX, y: e.clientY }
+    const dx = cur.x - lastPan.current.x
+    const dy = cur.y - lastPan.current.y
 
-    if (p.length >= 2 && lastDist.current !== null && rect) {
-      const newDist = pdist(p[0], p[1])
-      const newMid  = pmid(p[0], p[1])
-      setView(prev => {
-        const ratio     = newDist / lastDist.current!
-        const nextScale = clamp(prev.scale * ratio, MIN_SCALE, MAX_SCALE)
-        const sr        = nextScale / prev.scale
-        const px        = lastMid.current.x - rect.left
-        const py        = lastMid.current.y - rect.top
-        return {
-          scale: nextScale,
-          tx: clampX(px - sr * (px - prev.tx), nextScale),
-          ty: clampY(py - sr * (py - prev.ty), nextScale),
-        }
-      })
-      lastDist.current = newDist
-      lastMid.current  = newMid
-    } else if (p.length === 1) {
-      const dx = e.clientX - lastPan.current.x
-      const dy = e.clientY - lastPan.current.y
-      lastPan.current = { x: e.clientX, y: e.clientY }
-      setView(prev => ({
-        ...prev,
-        tx: clampX(prev.tx + dx, prev.scale),
-        ty: clampY(prev.ty + dy, prev.scale),
-      }))
+    if (imgRef.current && containerRef.current) {
+      const vW = containerRef.current.offsetWidth;
+      const vH = containerRef.current.offsetHeight;
+      const iW = imgRef.current.offsetWidth;
+      const iH = imgRef.current.offsetHeight;
+
+      setTx((prev) => {
+        const next = prev + dx;
+        const limitX = -(iW - vW);
+        return Math.min(0, Math.max(next, limitX));
+      });
+      setTy((prev) => {
+        const next = prev + dy;
+        const limitY = -(iH - vH);
+        return Math.min(0, Math.max(next, limitY));
+      });
     }
-  }
-
-  const onPointerUp = (e: React.PointerEvent) => {
-    pointers.current.delete(e.pointerId)
-    if (pointers.current.size < 2) lastDist.current = null
-    const p = getPoints()
-    if (p.length === 1) lastPan.current = p[0]
+    lastPan.current = cur
   }
 
   return (
@@ -1091,18 +1019,21 @@ function MapViewer({ src, children, isMobile, windowHeight }:
       style={{ height: "calc(100vh - 80px)", marginTop: "80px" }}
     >
       <div
-        onPointerDown={onPointerDown}
+        onPointerDown={(e) => {
+          pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          lastPan.current = { x: e.clientX, y: e.clientY };
+        }}
         onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
+        onPointerUp={(e) => pointers.current.delete(e.pointerId)}
+        onPointerCancel={(e) => pointers.current.delete(e.pointerId)}
         style={{
-          transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`,
-          transformOrigin: "0 0",
+          transform: `translate(${tx}px, ${ty}px)`,
           touchAction: "none",
           position: "relative",
-          width: isMobile ? "600px" : "100%",
+          display: "inline-block",
+          width: "fit-content",
           cursor: "grab",
-          willChange: "transform",
+          flexShrink: 0
         }}
       >
         <img
@@ -1110,7 +1041,14 @@ function MapViewer({ src, children, isMobile, windowHeight }:
           src={src}
           alt="Mapa"
           className="select-none pointer-events-none"
-          style={{ display: "block", width: "100%", height: "auto" }}
+          style={{
+            display: "block",
+            width: "auto",
+            height: isMobile ? "100%" : "auto",
+            minWidth: isMobile ? "750px" : "100%",
+            maxWidth: "none",
+            flexShrink: 0
+          }}
         />
         <div className="absolute inset-0">
           {children}
@@ -1354,7 +1292,7 @@ export default function MapaInteractivo() {
           }
         }}
       >
-        <ul className="pt-4 p-4 space-y-2">
+        <ul className="px-4 pt-20 pb-4 space-y-2">
           {Object.keys(categorias).map((cat) => (
             <li key={cat}>
               <button

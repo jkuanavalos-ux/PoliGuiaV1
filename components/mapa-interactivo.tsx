@@ -994,14 +994,17 @@ function MapViewer({ src, children, isMobile, windowHeight }:
   const [ty, setTy] = useState(0)
 
   useEffect(() => {
-    if (!isMobile) {
-      setTx(0);
-      setTy(0);
-    } else {
-      setTx(-50);
-      setTy(0);
-    }
-  }, [src, isMobile]);
+    setTx(0);
+    setTy(0);
+  }, [src]);
+
+  const centerMap = (imgEl: HTMLImageElement) => {
+    if (!containerRef.current) return
+    const vW = containerRef.current.offsetWidth
+    const iW = imgEl.offsetWidth
+    setTx(Math.min(0, (vW - iW) / 2))
+    setTy(0)
+  }
 
   const onPointerMove = (e: React.PointerEvent) => {
     if (!pointers.current.has(e.pointerId)) return
@@ -1058,6 +1061,7 @@ function MapViewer({ src, children, isMobile, windowHeight }:
           src={src}
           alt="Mapa"
           className="select-none pointer-events-none"
+          onLoad={(e) => centerMap(e.currentTarget)}
           style={{
             display: "block",
             width: "auto",
